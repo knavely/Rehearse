@@ -8,6 +8,7 @@
 #include <CelBoolVar.h>
 #include <CelNumVarArray.h>
 #include <CelBoolVarArray.h>
+#include <CGAL/Arrangement_2.h>
 
 #include "CbcModel.hpp"
 #include "OsiClpSolverInterface.hpp"
@@ -50,7 +51,7 @@ void exemple1(){
     printf("Solution for x1 : %g\n", model.getSolutionValue(x1));
     printf("Solution for x2 : %g\n", model.getSolutionValue(x2));
     printf("Solution objvalue = : %g\n", solver->getObjValue());
-
+    printf("");
     assert2(fabs(4 - model.getSolutionValue(x1)) < 0.00000001);
     assert2(fabs(14 - model.getSolutionValue(x2)) < 0.00000001);
     assert2(fabs(18 - (model.getSolutionValue(x1) + model.getSolutionValue(x2)) ) < 0.00000001);
@@ -60,6 +61,46 @@ void exemple1(){
     printf("Test %d : OK\n", ++test_counter);
 
     delete solver;
+}
+
+void setCover(std::vector<std::vector<int>> sets, int n) {
+  OsiClpSolverInterface solver;
+  CelModel model(solver);
+  //CelVariableArray<CelIntVar> x;
+  CelBoolVarArray x;
+  x.multiDimensionResize(1,n);
+
+  CelExpression objective;
+  for(int i = 0; i < n; ++i) {
+    objective += x[i];
+  }
+  model.setObjective(objective);
+
+  //add set constraints
+  for(auto set: sets) {
+    CelExpression setConstraint;
+    for(auto s: set) {
+      setConstraint += x[s];
+    }
+    model.addConstraint(1 <= setConstraint);
+  }
+  for(int i = 0; i < n; ++i) {
+    model.addConstraint(0 <= x[i]);
+    model.addConstraint(x[i] <= 1);
+  }
+  solver.setObjSense(1.0);
+  model.builderToSolver();
+  solver.setLogLevel(0);
+  solver.initialSolve();
+
+  CbcModel cbcModel(solver);
+  cbcModel.setLogLevel(1);
+  cbcModel.solver()->setHintParam(OsiDoReducePrint, true, OsiHintTry);
+  cbcModel.branchAndBound();
+  for(int i = 0; i < n; ++i) {
+    double xi = model.getSolutionValue(x[i], *cbcModel.solver());
+    printf("Solution for x_%i : %g\n", i, xi);
+  }
 }
 
 
